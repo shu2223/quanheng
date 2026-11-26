@@ -109,6 +109,20 @@ def test_poor_consistency_text(hand_dict):
     assert "注意：两两比较的结果前后不够一致，权重的波动已放大。" in lines
 
 
+def test_pinning_into_nothing_feasible_is_listed_as_a_flip(hand_dict):
+    def edit(d):
+        d["criteria"][0]["good"] = 60000
+        d["scores"]["a"].update(rent=78000, commute=[30, 40])
+        d["scores"]["b"].update(rent=88000, commute=[20, 30])
+        d["constraints"] = [{"criterion": "rent", "op": "<=", "threshold": 85000}]
+
+    m = _model(hand_dict, edit)
+    lines = explain_choice(m, solve_choice(m)).splitlines()
+    assert '  · A 的"房租"高于 85,000 日元/月（你填的是 78,000）' in lines
+    # A 的房租、B 的房租会翻转；A 的通勤、B 的通勤、两条权重不会
+    assert "  · 其余 4 个输入在参照范围内怎么变都不会翻转结论" in lines
+
+
 def test_partial_infeasibility_text(hand_dict):
     def edit(d):
         d["scores"]["a"]["rent"] = [70000, 90000]

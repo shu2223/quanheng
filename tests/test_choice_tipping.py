@@ -1,9 +1,10 @@
+import numpy as np
 import pytest
 
 from quanheng.choice.evaluate import draw
 from quanheng.choice.model import ChoiceModel
 from quanheng.choice.solve import solve_choice
-from quanheng.choice.tipping import leader_with_pinned
+from quanheng.choice.tipping import leader, leader_with_pinned
 
 
 def by_target(result):
@@ -87,3 +88,41 @@ def test_single_criterion_and_extreme_weights():
     tp = {t.target: t for t in solve_choice(two).tipping_points}
     assert "weights.x" not in tp  # 权重已经是 1，跳过
     assert tp["weights.y"].flips_at == pytest.approx(0.2, abs=0.02)
+
+
+def budget_model():
+    """B is always over budget, so A wins every sample while A's rent stays within it."""
+    return ChoiceModel.model_validate(
+        {
+            "title": "t",
+            "options": [{"id": "a", "name": "A"}, {"id": "b", "name": "B"}],
+            "criteria": [
+                {"id": "rent", "name": "房租", "unit": "日元/月", "bad": 90000, "good": 60000},
+                {"id": "q", "name": "Q", "bad": 0, "good": 10},
+            ],
+            "constraints": [{"criterion": "rent", "op": "<=", "threshold": 85000}],
+            "scores": {"a": {"rent": 78000, "q": [4, 6]}, "b": {"rent": 88000, "q": [5, 9]}},
+            "weights": {"values": {"rent": 1, "q": 1}, "certainty": "fixed"},
+        }
+    )
+
+
+def test_leader_rule_counts_nothing_feasible_as_an_outcome():
+    rates = np.array([0.0, 0.0])
+    assert leader(rates, 1.0) is None
+    assert leader(np.array([0.3, 0.3]), 0.4) is None
+    assert leader(np.array([0.4, 0.4]), 0.2) == 0  # 并列：先声明的候选
+    assert leader(np.array([0.2, 0.45]), 0.35) == 1
+    assert leader(np.array([0.5, 0.0]), 0.5) == 0  # 一样多时不算"没有可行方案"
+
+
+def test_pinning_into_nothing_feasible_is_a_flip():
+    m = budget_model()
+    result = solve_choice(m)
+    assert result.verdict.winner == "a" and result.win_rates["a"] == 1.0
+    tp = by_target(result)["scores.a.rent"]
+    assert tp.flips_at == pytest.approx(85000, abs=0.01)
+    assert tp.new_leader is None
+    draws = draw(m, 10_000, 0)
+    assert leader_with_pinned(m, draws, "scores.a.rent", 86000) is None
+    assert leader_with_pinned(m, draws, "scores.a.rent", 84000) == "a"

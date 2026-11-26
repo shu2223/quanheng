@@ -12,13 +12,18 @@ GRID_POINTS = 101
 BISECTION_STEPS = 40
 
 
-def leading_index(rates: NDArray[np.float64]) -> int:
-    """Highest win rate; ties go to the earlier-declared option."""
-    return int(np.argsort(-rates, kind="stable")[0])
+def leader(win_rates: NDArray[np.float64], none_feasible_share: float) -> int | None:
+    """The leading option's index, or None when "nothing feasible" is the largest outcome.
+
+    Otherwise the highest win rate leads; ties go to the earlier-declared option.
+    """
+    if none_feasible_share > float(win_rates.max()):
+        return None
+    return int(np.argsort(-win_rates, kind="stable")[0])
 
 
-def leader_with_pinned(model: ChoiceModel, draws: Draws, target: str, value: float) -> str:
-    """The option with the highest win rate when `target` is pinned at `value`."""
+def leader_with_pinned(model: ChoiceModel, draws: Draws, target: str, value: float) -> str | None:
+    """The leader when `target` is pinned at `value`; None means no option is feasible there."""
     option_ids = [o.id for o in model.options]
     criterion_ids = [c.id for c in model.criteria]
     parts = target.split(".")
@@ -41,7 +46,8 @@ def leader_with_pinned(model: ChoiceModel, draws: Draws, target: str, value: flo
     else:
         raise ValueError(f"unknown tipping target: {target!r}")
     outcome = evaluate(model, raw, weights, draws.weight_factor)
-    return option_ids[leading_index(outcome.share.mean(axis=0))]
+    i = leader(outcome.share.mean(axis=0), float(outcome.none_feasible.mean()))
+    return None if i is None else option_ids[i]
 
 
 @dataclass(frozen=True)
@@ -87,25 +93,27 @@ def _targets(model: ChoiceModel) -> list[_Target]:
 def _solve_target(
     model: ChoiceModel, draws: Draws, winner: str, t: _Target
 ) -> tuple[float | None, str | None]:
-    def leader(v: float) -> str:
+    """Where the leader changes, and to whom; a change to None (nothing feasible) counts."""
+
+    def lead(v: float) -> str | None:
         return leader_with_pinned(model, draws, t.name, v)
 
-    at_current = leader(t.current)
+    at_current = lead(t.current)
     if at_current != winner:
         return t.current, at_current
     grid = np.linspace(t.lo, t.hi, GRID_POINTS)
-    flipped = [float(v) for v in grid if leader(float(v)) != winner]
+    flipped = [float(v) for v in grid if lead(float(v)) != winner]
     if not flipped:
         return None, None
     far = min(flipped, key=lambda v: abs(v - t.current))
     good, bad = t.current, far
     for _ in range(BISECTION_STEPS):
         mid = (good + bad) / 2
-        if leader(mid) == winner:
+        if lead(mid) == winner:
             good = mid
         else:
             bad = mid
-    return (good + bad) / 2, leader(bad)
+    return (good + bad) / 2, lead(bad)
 
 
 def tipping_points(model: ChoiceModel, draws: Draws, winner: str) -> list[TippingPoint]:
