@@ -2,7 +2,11 @@
   "kind": "choice_result",
   "meta": {
     "seed": 0,
-    "samples": 10000
+    "samples": 10000,
+    "thresholds": {
+      "clear": 0.9,
+      "leaning": 0.7
+    }
   },
   "verdict": {
     "level": "leaning",

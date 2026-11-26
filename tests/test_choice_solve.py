@@ -1,5 +1,7 @@
 import numpy
 import pytest
+import scipy
+from pydantic import ValidationError
 
 import quanheng
 from quanheng.choice.model import ChoiceModel
@@ -42,6 +44,8 @@ def test_hand_model_result(hand_model):
         "samples": 10_000,
         "engine_version": quanheng.__version__,
         "numpy_version": numpy.__version__,
+        "scipy_version": scipy.__version__,
+        "thresholds": {"clear": 0.9, "leaning": 0.7},
     }
     assert r.assumptions == [
         "independent_inputs",
@@ -57,8 +61,24 @@ def test_known_win_rate_and_thresholds():
     r = solve_choice(m)
     assert r.win_rates["a"] == pytest.approx(0.75, abs=0.015) and r.verdict.level == "leaning"
     assert r.verdict.std_error == pytest.approx(0.0043, abs=2e-4)
-    assert solve_choice(m, thresholds=Thresholds(clear=0.6)).verdict.level == "clear"
+    custom = Thresholds(clear=0.6, leaning=0.5)
+    r = solve_choice(m, thresholds=custom)
+    assert r.verdict.level == "clear" and r.meta.thresholds == custom
     assert solve_choice(m, thresholds=Thresholds(leaning=0.8)).verdict.level == "toss_up"
+
+
+@pytest.mark.parametrize(
+    "clear, leaning",
+    [(-1, 2), (0.5, 0.6), (0.9, 0), (0.9, -0.1), (1.1, 0.7), (0.6, 0.7)],
+)
+def test_thresholds_must_be_ordered_within_zero_and_one(clear, leaning):
+    with pytest.raises(ValidationError):
+        Thresholds(clear=clear, leaning=leaning)
+
+
+@pytest.mark.parametrize("clear, leaning", [(1, 1), (0.7, 0.7), (1, 0.01), (0.9, 0.7)])
+def test_thresholds_boundaries_are_allowed(clear, leaning):
+    assert Thresholds(clear=clear, leaning=leaning).clear == clear
 
 
 def test_win_rates_and_none_feasible_sum_to_one(rent_model):

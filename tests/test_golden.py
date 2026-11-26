@@ -22,6 +22,7 @@ def rounded_view(data: dict[str, Any]) -> dict[str, Any]:
     view: dict[str, Any] = _round(data)
     view["meta"].pop("engine_version", None)
     view["meta"].pop("numpy_version", None)
+    view["meta"].pop("scipy_version", None)
     return view
 
 

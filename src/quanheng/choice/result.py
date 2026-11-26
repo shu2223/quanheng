@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from quanheng._base import Model
 
@@ -9,12 +9,20 @@ class Thresholds(Model):
     clear: float = 0.90
     leaning: float = 0.70
 
+    @model_validator(mode="after")
+    def _check_order(self) -> "Thresholds":
+        if not 0 < self.leaning <= self.clear <= 1:
+            raise ValueError("thresholds require 0 < leaning <= clear <= 1")
+        return self
+
 
 class Meta(Model):
     seed: int
     samples: int
     engine_version: str
     numpy_version: str
+    scipy_version: str
+    thresholds: Thresholds
 
 
 class Verdict(Model):

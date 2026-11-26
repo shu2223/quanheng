@@ -2,6 +2,7 @@ import math
 from typing import Literal
 
 import numpy as np
+import scipy
 from numpy.typing import NDArray
 
 import quanheng
@@ -168,6 +169,8 @@ def solve_choice(
             samples=samples,
             engine_version=quanheng.__version__,
             numpy_version=np.__version__,
+            scipy_version=scipy.__version__,
+            thresholds=thresholds,
         ),
         verdict=verdict,
         win_rates=win_rates,
