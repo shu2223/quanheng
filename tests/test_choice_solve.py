@@ -53,7 +53,7 @@ def test_hand_model_result(hand_model):
 
 
 def test_known_win_rate_and_thresholds():
-    m = one_criterion(5, [0, 20 / 3])  # B 超过 5 的概率是 25%，A 的真实胜出率 0.75，离 0.70 的界线有距离
+    m = one_criterion(5, [0, 20 / 3])  # A 的真实胜出率 0.75，远离 0.70 界线
     r = solve_choice(m)
     assert r.win_rates["a"] == pytest.approx(0.75, abs=0.015) and r.verdict.level == "leaning"
     assert r.verdict.std_error == pytest.approx(0.0043, abs=2e-4)
