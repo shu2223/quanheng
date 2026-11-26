@@ -17,7 +17,7 @@ def leader(win_rates: NDArray[np.float64], none_feasible_share: float) -> int | 
 
     Otherwise the highest win rate leads; ties go to the earlier-declared option.
     """
-    if none_feasible_share > float(win_rates.max()):
+    if none_feasible_share > float(np.max(win_rates)):
         return None
     return int(np.argsort(-win_rates, kind="stable")[0])
 
