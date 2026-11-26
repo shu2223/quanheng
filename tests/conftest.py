@@ -6,6 +6,16 @@ import pytest
 
 from quanheng.choice.model import ChoiceModel
 
+
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption(
+        "--update-golden",
+        action="store_true",
+        default=False,
+        help="rewrite examples/golden/*.json from the current engine output",
+    )
+
+
 HAND: dict[str, Any] = {
     "title": "hand",
     "options": [{"id": "a", "name": "A"}, {"id": "b", "name": "B"}],

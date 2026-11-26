@@ -8,6 +8,9 @@ license-files = ["LICENSE"]
 requires-python = ">=3.11"
 dependencies = ["numpy>=2.0", "scipy>=1.13", "pydantic>=2.7"]
 
+[project.scripts]
+quanheng = "quanheng.cli:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
