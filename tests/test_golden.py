@@ -2,10 +2,13 @@ import json
 from pathlib import Path
 from typing import Any
 
+from quanheng.choice.explain import explain_choice
+from quanheng.choice.model import ChoiceModel
 from quanheng.choice.solve import solve_choice
 from quanheng.io import load_model, save_model
 
 GOLDEN = Path(__file__).parent.parent / "examples" / "golden" / "rent-a-or-b.result.json"
+GOLDEN_TEXT = GOLDEN.parent / "rent-a-or-b.explain.txt"
 
 
 def _round(x: Any) -> Any:
@@ -36,6 +39,21 @@ def test_example_matches_golden(rent_model, request):
     assert view == golden
     assert golden["verdict"]["level"] == "leaning"
     assert golden["win_rates"] == {"a": 0.8092, "b": 0.1908}
+
+
+def explanation_without_meta(model: ChoiceModel) -> str:
+    """The explanation minus its last line (versions differ by platform), ending in one LF."""
+    lines = explain_choice(model, solve_choice(model)).split("\n")
+    assert lines[-1].startswith("抽样 ") and lines[-2] == ""
+    return "\n".join(lines[:-2]) + "\n"
+
+
+def test_example_explanation_matches_golden(rent_model, request):
+    # 跨操作系统：显示的数字和结论措辞必须一致，所以逐字比较
+    text = explanation_without_meta(rent_model)
+    if request.config.getoption("--update-golden"):
+        GOLDEN_TEXT.write_bytes(text.encode("utf-8"))  # LF on every platform
+    assert GOLDEN_TEXT.read_bytes().decode("utf-8") == text
 
 
 def test_save_and_load_round_trip(rent_model, tmp_path):

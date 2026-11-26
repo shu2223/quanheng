@@ -12,7 +12,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "--update-golden",
         action="store_true",
         default=False,
-        help="rewrite examples/golden/*.json from the current engine output",
+        help="rewrite the files in examples/golden/ from the current engine output",
     )
 
 
