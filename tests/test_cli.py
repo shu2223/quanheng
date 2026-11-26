@@ -81,9 +81,16 @@ def test_missing_file_and_bad_arguments():
         ["whatif", EXAMPLE, "--set", "scores.a.rent=nan"],
         ["whatif", EXAMPLE, "--scale", "scores.a.rent=inf"],
         ["whatif", EXAMPLE, "--shift", "scores.a.rent=1e999"],
+        ["whatif", EXAMPLE, "--set", "constraints.².threshold=1"],
     ):
         p = run(*args)
         assert p.returncode == 2 and "Traceback" not in p.stderr, args
+
+
+def test_whatif_needs_at_least_one_change():
+    p = run("whatif", EXAMPLE)
+    assert p.returncode == 2 and p.stdout == "" and "Traceback" not in p.stderr
+    assert "--set" in p.stderr
 
 
 @pytest.mark.parametrize(

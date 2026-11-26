@@ -175,6 +175,25 @@ def test_mostly_infeasible_text(hand_model):
     assert "什么会让结论翻转" not in text and "为什么是" not in text
 
 
+def test_constraint_met_at_central_values_but_not_in_most_samples():
+    m = ChoiceModel.model_validate(
+        {
+            "title": "t",
+            "options": [{"id": "a", "name": "A"}, {"id": "b", "name": "B"}],
+            "criteria": [{"id": "x", "name": "项", "bad": 0, "good": 10}],
+            "constraints": [{"criterion": "x", "op": ">=", "threshold": 5}],
+            "scores": {"a": {"x": [0, 5, 5.5]}, "b": {"x": 3}},  # A 最可能是 5，但多数抽样低于 5
+            "weights": {"values": {"x": 1}, "certainty": "fixed"},
+        }
+    )
+    r = solve_choice(m)
+    assert r.verdict.level == "mostly_infeasible"
+    assert (r.constraint_gaps[0].nearest_option, r.constraint_gaps[0].gap) == ("a", 0.0)
+    lines = explain_choice(m, r).splitlines()
+    assert '  · "项" >= 5：按中心值 A 能满足，但抽样中多数情况下不满足' in lines
+    assert not any("还差" in line for line in lines)
+
+
 def test_whatif_text(hand_model):
     r = compare(hand_model, [PatchOp(target="weights.rent", op="set", value=0.8)])
     lines = explain_whatif(hand_model, r).splitlines()

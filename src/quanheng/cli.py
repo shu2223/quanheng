@@ -99,7 +99,7 @@ def _run(args: argparse.Namespace) -> str:
     if args.command == "solve":
         result = solve_choice(model, samples=args.samples, seed=args.seed)
         return result.model_dump_json(indent=2) if args.as_json else explain_choice(model, result)
-    ops: list[PatchOp] = args.ops or []
+    ops: list[PatchOp] = args.ops
     comparison = compare(model, ops, samples=args.samples, seed=args.seed)
     if args.as_json:
         return comparison.model_dump_json(indent=2)
@@ -109,7 +109,10 @@ def _run(args: argparse.Namespace) -> str:
 def main(argv: list[str] | None = None) -> int:
     for stream in (sys.stdout, sys.stderr):
         stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
-    args = _build_parser().parse_args(argv)
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+    if args.command == "whatif" and not args.ops:
+        parser.error(zh.WHATIF_NO_OPS)  # exits 2, before any solve
     try:
         output = _run(args)
     except UnconfirmedInputError as exc:

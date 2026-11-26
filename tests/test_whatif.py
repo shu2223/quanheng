@@ -76,6 +76,7 @@ def test_unpatched_inputs_draw_the_same_values(rent_model):
         ("weights.rent", "shift", -0.9),
         ("weights.nope", "set", 0.5),
         ("constraints.x.threshold", "set", 1),
+        ("constraints.².threshold", "set", 1),  # str.isdigit() 认为 "²" 是数字
     ],
 )
 def test_invalid_patches(rent_model, target, kind, value):

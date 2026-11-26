@@ -99,10 +99,12 @@ def _apply_one(data: dict[str, Any], op: PatchOp) -> Change:
         return _patch_weight(data, parts[1], op)
     if head == "constraints" and len(parts) == 3 and parts[2] == "threshold":
         constraints = data["constraints"]
-        if not parts[1].isdigit() or int(parts[1]) >= len(constraints):
+        index = parts[1]
+        # isdigit() alone accepts characters such as "²" that int() rejects.
+        if not (index.isascii() and index.isdigit()) or int(index) >= len(constraints):
             raise PatchError(f"目标不存在: {op.target}")
         _check_factor(op)
-        c = constraints[int(parts[1])]
+        c = constraints[int(index)]
         before = float(c["threshold"])
         c["threshold"] = _arith(op, before)
         return Change(target=op.target, before=[before], after=[c["threshold"]])

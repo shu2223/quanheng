@@ -52,6 +52,9 @@ POOR_CONSISTENCY_NOTE = "注意：两两比较的结果前后不够一致，权�
 # ---- 约束差距 ----
 GAP_TITLE = "放宽哪条约束最容易得到可行方案"
 GAP_LINE = '  · "{criterion}" {op} {threshold}：最接近的是 {option}，还差 {gap}{unit}'
+GAP_LINE_CENTRAL_MET = (
+    '  · "{criterion}" {op} {threshold}：按中心值 {option} 能满足，但抽样中多数情况下不满足'
+)
 
 # ---- 假设 ----
 ASSUMPTIONS_TITLE = "这次计算的假设"
@@ -97,5 +100,6 @@ SEED_NOT_INT = "种子必须是整数：{value}"
 SEED_NEGATIVE = "种子必须是非负整数：{value}"
 PATCH_MISSING_EQUALS = "格式应为 目标=数值：{value}"
 PATCH_NOT_NUMBER = "等号后面必须是数字：{value}"
+WHATIF_NO_OPS = "whatif 至少需要一个 --set、--scale 或 --shift"
 UNCONFIRMED_HEADER = "以下数值尚未确认，引擎拒绝计算（请先确认，把 confirmed 改为 true）："
 ERROR_PREFIX = "错误："

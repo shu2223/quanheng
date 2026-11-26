@@ -213,12 +213,21 @@ def _gap_block(model: ChoiceModel, result: ChoiceResult) -> list[str]:
     for g in result.constraint_gaps:
         constraint = model.constraints[g.index]
         crit = _criterion(model, g.criterion)
+        option = _option_name(model, g.nearest_option)
+        threshold = fmt_number(constraint.threshold)
+        if g.gap == 0:  # met at central values; it is the samples that mostly fail it
+            lines.append(
+                zh.GAP_LINE_CENTRAL_MET.format(
+                    criterion=crit.name, op=constraint.op, threshold=threshold, option=option
+                )
+            )
+            continue
         lines.append(
             zh.GAP_LINE.format(
                 criterion=crit.name,
                 op=constraint.op,
-                threshold=fmt_number(constraint.threshold),
-                option=_option_name(model, g.nearest_option),
+                threshold=threshold,
+                option=option,
                 gap=fmt_number(g.gap),
                 unit=_unit(crit.unit),
             )
