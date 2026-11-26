@@ -1,6 +1,7 @@
 """Command line: ``quanheng solve`` and ``quanheng whatif``."""
 
 import argparse
+import math
 import sys
 from pathlib import Path
 from typing import Any, Literal, cast
@@ -28,9 +29,12 @@ def _samples(value: str) -> int:
 
 def _seed(value: str) -> int:
     try:
-        return int(value)
+        seed = int(value)
     except ValueError:
         raise argparse.ArgumentTypeError(zh.SEED_NOT_INT.format(value=value)) from None
+    if seed < 0:
+        raise argparse.ArgumentTypeError(zh.SEED_NEGATIVE.format(value=value))
+    return seed
 
 
 def _patch_value(text: str) -> tuple[str, float]:
@@ -38,9 +42,12 @@ def _patch_value(text: str) -> tuple[str, float]:
     if not sep or not target:
         raise argparse.ArgumentTypeError(zh.PATCH_MISSING_EQUALS.format(value=text))
     try:
-        return target, float(number)
+        parsed = float(number)
     except ValueError:
         raise argparse.ArgumentTypeError(zh.PATCH_NOT_NUMBER.format(value=text)) from None
+    if not math.isfinite(parsed):
+        raise argparse.ArgumentTypeError(zh.PATCH_NOT_NUMBER.format(value=text))
+    return target, parsed
 
 
 class _AppendOp(argparse.Action):

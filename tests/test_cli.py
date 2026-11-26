@@ -77,6 +77,10 @@ def test_missing_file_and_bad_arguments():
         ["whatif", EXAMPLE, "--set", "criteria.rent.bad=1"],
         ["whatif", EXAMPLE, "--set", "scores.a.rent"],
         ["whatif", EXAMPLE, "--set", "scores.a.rent=abc"],
+        ["solve", EXAMPLE, "--seed", "-1"],
+        ["whatif", EXAMPLE, "--set", "scores.a.rent=nan"],
+        ["whatif", EXAMPLE, "--scale", "scores.a.rent=inf"],
+        ["whatif", EXAMPLE, "--shift", "scores.a.rent=1e999"],
     ):
         p = run(*args)
         assert p.returncode == 2 and "Traceback" not in p.stderr, args
