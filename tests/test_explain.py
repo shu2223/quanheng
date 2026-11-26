@@ -1,7 +1,8 @@
 import pytest
 
-from quanheng.choice.explain import explain_choice, explain_whatif, fmt_number
+from quanheng.choice.explain import explain_choice, explain_whatif, fmt_number, fmt_percent
 from quanheng.choice.model import ChoiceModel
+from quanheng.choice.result import Thresholds, TippingPoint, Verdict
 from quanheng.choice.solve import solve_choice
 from quanheng.whatif import PatchOp, compare
 
@@ -20,6 +21,25 @@ from quanheng.whatif import PatchOp, compare
 )
 def test_fmt_number(x, text):
     assert fmt_number(x) == text
+
+
+@pytest.mark.parametrize(
+    "p, text",
+    [
+        (0, "0%"),
+        (0.001, "<1%"),
+        (0.0049, "<1%"),
+        (0.005, "1%"),
+        (0.5, "50%"),
+        (0.8092, "81%"),
+        (0.9949, "99%"),
+        (0.995, ">99%"),
+        (0.99946, ">99%"),
+        (1, "100%"),
+    ],
+)
+def test_fmt_percent(p, text):
+    assert fmt_percent(p) == text
 
 
 def test_hand_model_text(hand_model):
@@ -43,6 +63,106 @@ def test_example_text(rent_model):
     assert '  · B 的"通勤"低于 41.11 分钟（你填的是 40–55）' in text
     assert '  1. B 的"通勤"：在你给的范围低端时 A 的胜出率是' in text
     assert "rent" not in text and "commute" not in text  # 不出现内部标识
+
+
+def test_hidden_flipping_inputs_are_counted(rent_model):
+    result = solve_choice(rent_model)
+    assert sum(t.flips_at is not None for t in result.tipping_points) == 11
+    lines = explain_choice(rent_model, result).splitlines()
+    start = lines.index("什么会让结论翻转")
+    block = lines[start + 1 : start + 8]
+    assert block[5] == "  · 另有 6 个输入也会翻转结论，但临界值离你填的值更远"
+    assert block[6] == "  · 其余 1 个输入在参照范围内怎么变都不会翻转结论"
+
+
+def test_no_hidden_line_when_all_flips_are_shown(hand_model):
+    text = explain_choice(hand_model, solve_choice(hand_model))
+    assert "另有" not in text
+
+
+def test_flip_at_the_central_value_has_no_direction():
+    m = _single([0, 0, 10], 2)
+    lines = explain_choice(m, solve_choice(m)).splitlines()
+    assert '  · 如果 A 的"项"确定就是 0（你填的中心值），结论就会翻转' in lines
+    assert not any('A 的"项"高于' in line or 'A 的"项"低于' in line for line in lines)
+
+
+def test_flip_at_the_central_value_with_unit_and_weight(hand_model):
+    result = solve_choice(hand_model)
+    at_current = [
+        TippingPoint(
+            target="scores.a.rent",
+            current=70000,
+            flips_at=70000,
+            new_leader="b",
+            within_stated_range=True,
+        ),
+        TippingPoint(
+            target="weights.rent",
+            current=0.5,
+            flips_at=0.5,
+            new_leader="b",
+            within_stated_range=True,
+        ),
+    ]
+    lines = explain_choice(
+        hand_model, result.model_copy(update={"tipping_points": at_current})
+    ).splitlines()
+    assert '  · 如果 A 的"房租"确定就是 70,000 日元/月（你填的中心值），结论就会翻转' in lines
+    assert '  · 如果"房租"的权重确定就是 0.50，结论就会翻转' in lines
+
+
+def test_verdict_does_not_round_up_onto_the_clear_threshold():
+    m = _single(5, [0, 5 / 0.8975])
+    r = solve_choice(m)
+    assert r.verdict.win_rate == 0.8994 and r.verdict.level == "leaning"
+    assert explain_choice(m, r).splitlines()[1] == "倾向 A　A 在 89.9% 的情况下胜出（±0.6%）"
+
+
+def test_verdict_near_certain_is_not_shown_as_100():
+    m = _single(5, [0, 5.002])
+    r = solve_choice(m, samples=100_000)
+    assert r.verdict.win_rate == 0.99946
+    assert explain_choice(m, r).splitlines()[1] == "明确 A　A 在 >99% 的情况下胜出（±0.0%）"
+
+
+def _with_verdict(result, level, win_rate, thresholds=None):
+    verdict = Verdict(level=level, winner="a", runner_up="b", win_rate=win_rate, std_error=0.0)
+    update = {"verdict": verdict}
+    if thresholds is not None:
+        update["meta"] = result.meta.model_copy(update={"thresholds": thresholds})
+    return result.model_copy(update=update)
+
+
+def test_verdict_threshold_rule_uses_the_recorded_thresholds(hand_model):
+    r = solve_choice(hand_model)
+    line = explain_choice(hand_model, _with_verdict(r, "toss_up", 0.6996)).splitlines()[1]
+    assert line == "难分高下　A 略占上风，在 69.9% 的情况下胜出（±0.0%）"
+    custom = Thresholds(clear=0.8, leaning=0.6)
+    line = explain_choice(hand_model, _with_verdict(r, "leaning", 0.7996, custom)).splitlines()[1]
+    assert line == "倾向 A　A 在 79.9% 的情况下胜出（±0.0%）"
+    line = explain_choice(hand_model, _with_verdict(r, "leaning", 0.8996)).splitlines()[1]
+    assert line == "倾向 A　A 在 89.9% 的情况下胜出（±0.0%）"
+    line = explain_choice(hand_model, _with_verdict(r, "clear", 0.8996, custom)).splitlines()[1]
+    assert line == "明确 A　A 在 90% 的情况下胜出（±0.0%）"  # 门槛 0.8，不矛盾
+
+
+def test_tiny_infeasible_share_is_not_shown_as_zero():
+    m = ChoiceModel.model_validate(
+        {
+            "title": "t",
+            "options": [{"id": "a", "name": "A"}, {"id": "b", "name": "B"}],
+            "criteria": [{"id": "x", "name": "项", "bad": 0, "good": 10}],
+            "constraints": [{"criterion": "x", "op": ">=", "threshold": 0.01}],
+            "scores": {"a": {"x": [0, 10]}, "b": {"x": [0, 10]}},
+            "weights": {"values": {"x": 1}, "certainty": "fixed"},
+        }
+    )
+    r = solve_choice(m)
+    assert 0 < 1 - r.feasibility["a"] < 0.005
+    lines = explain_choice(m, r).splitlines()
+    assert "A 有 <1% 的情况不满足硬约束。" in lines
+    assert not any("0% 的情况不满足" in line for line in lines)
 
 
 def test_mostly_infeasible_text(hand_model):

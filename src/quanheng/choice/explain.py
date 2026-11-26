@@ -1,6 +1,8 @@
+import math
+
 from quanheng import zh
 from quanheng.choice.model import ChoiceModel, Criterion
-from quanheng.choice.result import ChoiceResult
+from quanheng.choice.result import ChoiceResult, Thresholds, TippingPoint
 from quanheng.quantity import Exact, Quantity, Range
 from quanheng.whatif import WhatIfResult
 
@@ -18,8 +20,31 @@ def fmt_number(x: float) -> str:
     return f"{r:g}"
 
 
-def _pct(p: float) -> str:
-    return f"{p * 100:.0f}%"
+def _whole_percent(p: float) -> int:
+    return int(f"{p * 100:.0f}")
+
+
+def fmt_percent(p: float) -> str:
+    """A share as a whole percent that never rounds onto 0% or 100% unless it is exactly that."""
+    if p == 0:
+        return "0%"
+    if p == 1:
+        return "100%"
+    if p < 0.005:
+        return "<1%"
+    if p >= 0.995:
+        return ">99%"
+    # 0.005 * 100 is exactly 0.5 in binary, which rounds half to even, i.e. to 0.
+    return f"{max(_whole_percent(p), 1)}%"
+
+
+def _verdict_percent(p: float, thresholds: Thresholds) -> str:
+    """The verdict's win rate; never rounded up onto a level threshold that p is below."""
+    shown = _whole_percent(p)
+    for threshold in (thresholds.clear, thresholds.leaning):
+        if p < threshold <= shown / 100:
+            return f"{math.floor(p * 1000) / 10:.1f}%"
+    return fmt_percent(p)
 
 
 def _unit(unit: str) -> str:
@@ -56,13 +81,13 @@ def _quantity_text(q: Quantity) -> str:
 def _verdict_line(model: ChoiceModel, result: ChoiceResult) -> str:
     v = result.verdict
     if v.level == "mostly_infeasible" or v.winner is None:
-        return zh.VERDICT_INFEASIBLE.format(p=_pct(result.none_feasible_share))
+        return zh.VERDICT_INFEASIBLE.format(p=fmt_percent(result.none_feasible_share))
     err = f"±{1.96 * v.std_error * 100:.1f}%"
     template = zh.VERDICT_TOSS_UP if v.level == "toss_up" else zh.VERDICT_DECISIVE
     return template.format(
         level=zh.LEVEL_NAMES[v.level],
         winner=_option_name(model, v.winner),
-        p=_pct(v.win_rate),
+        p=_verdict_percent(v.win_rate, result.meta.thresholds),
         err=err,
     )
 
@@ -70,11 +95,11 @@ def _verdict_line(model: ChoiceModel, result: ChoiceResult) -> str:
 def _conclusion_block(model: ChoiceModel, result: ChoiceResult) -> list[str]:
     lines = [model.title, _verdict_line(model, result), zh.REMINDER]
     if result.none_feasible_share > 0 and result.verdict.level != "mostly_infeasible":
-        lines.append(zh.SOME_INFEASIBLE.format(p=_pct(result.none_feasible_share)))
+        lines.append(zh.SOME_INFEASIBLE.format(p=fmt_percent(result.none_feasible_share)))
     for o in model.options:
         share = result.feasibility.get(o.id, 1.0)
         if share < 1:
-            lines.append(zh.OPTION_INFEASIBLE.format(option=o.name, p=_pct(1 - share)))
+            lines.append(zh.OPTION_INFEASIBLE.format(option=o.name, p=fmt_percent(1 - share)))
     return lines
 
 
@@ -101,35 +126,45 @@ def _why_block(model: ChoiceModel, result: ChoiceResult) -> list[str]:
     return lines
 
 
+def _tipping_line(model: ChoiceModel, t: TippingPoint) -> str:
+    assert t.flips_at is not None
+    # Equal means pinning the input at its central value already flips: there is no direction.
+    at_current = t.flips_at == t.current
+    direction = zh.BELOW if t.flips_at < t.current else zh.ABOVE
+    parts = t.target.split(".")
+    if parts[0] == "weights":
+        criterion = _criterion(model, parts[1]).name
+        value = f"{t.flips_at:.2f}"
+        if at_current:
+            return zh.TIPPING_WEIGHT_AT_CURRENT.format(criterion=criterion, value=value)
+        return zh.TIPPING_WEIGHT.format(
+            criterion=criterion, direction=direction, value=value, current=f"{t.current:.2f}"
+        )
+    crit = _criterion(model, parts[2])
+    option = _option_name(model, parts[1])
+    value = fmt_number(t.flips_at)
+    if at_current:
+        return zh.TIPPING_SCORE_AT_CURRENT.format(
+            option=option, criterion=crit.name, value=value, unit=_unit(crit.unit)
+        )
+    return zh.TIPPING_SCORE.format(
+        option=option,
+        criterion=crit.name,
+        direction=direction,
+        value=value,
+        unit=_unit(crit.unit),
+        stated=_quantity_text(model.scores[parts[1]][parts[2]]),
+    )
+
+
 def _tipping_block(model: ChoiceModel, result: ChoiceResult) -> list[str]:
     lines = [zh.TIPPING_TITLE]
     with_value = [t for t in result.tipping_points if t.flips_at is not None]
     without = len(result.tipping_points) - len(with_value)
-    for t in with_value[:MAX_TIPPING]:
-        assert t.flips_at is not None
-        direction = zh.BELOW if t.flips_at < t.current else zh.ABOVE
-        parts = t.target.split(".")
-        if parts[0] == "weights":
-            lines.append(
-                zh.TIPPING_WEIGHT.format(
-                    criterion=_criterion(model, parts[1]).name,
-                    direction=direction,
-                    value=f"{t.flips_at:.2f}",
-                    current=f"{t.current:.2f}",
-                )
-            )
-        else:
-            crit = _criterion(model, parts[2])
-            lines.append(
-                zh.TIPPING_SCORE.format(
-                    option=_option_name(model, parts[1]),
-                    criterion=crit.name,
-                    direction=direction,
-                    value=fmt_number(t.flips_at),
-                    unit=_unit(crit.unit),
-                    stated=_quantity_text(model.scores[parts[1]][parts[2]]),
-                )
-            )
+    lines.extend(_tipping_line(model, t) for t in with_value[:MAX_TIPPING])
+    hidden = len(with_value) - MAX_TIPPING
+    if hidden > 0:
+        lines.append(zh.TIPPING_MORE.format(k=hidden))
     if not with_value:
         lines.append(zh.TIPPING_NONE)
     elif without:
@@ -147,8 +182,8 @@ def _info_block(model: ChoiceModel, result: ChoiceResult) -> list[str]:
     leader = _option_name(model, winner)
     for n, info in enumerate(shown, start=1):
         parts = info.target.split(".")
-        low = _pct(info.leader_win_rate_low)
-        high = _pct(info.leader_win_rate_high)
+        low = fmt_percent(info.leader_win_rate_low)
+        high = fmt_percent(info.leader_win_rate_high)
         if parts[0] == "weights":
             lines.append(
                 zh.INFO_WEIGHT.format(

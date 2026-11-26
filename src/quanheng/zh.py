@@ -27,6 +27,11 @@ CENTRAL_DISAGREES = "注意：按中心值计算是 {option} 领先，与抽样�
 TIPPING_TITLE = "什么会让结论翻转"
 TIPPING_SCORE = '  · {option} 的"{criterion}"{direction} {value}{unit}（你填的是 {stated}）'
 TIPPING_WEIGHT = '  · "{criterion}"的权重{direction} {value}（现在是 {current}）'
+TIPPING_SCORE_AT_CURRENT = (
+    '  · 如果 {option} 的"{criterion}"确定就是 {value}{unit}（你填的中心值），结论就会翻转'
+)
+TIPPING_WEIGHT_AT_CURRENT = '  · 如果"{criterion}"的权重确定就是 {value}，结论就会翻转'
+TIPPING_MORE = "  · 另有 {k} 个输入也会翻转结论，但临界值离你填的值更远"
 TIPPING_REST = "  · 其余 {n} 个输入在参照范围内怎么变都不会翻转结论"
 TIPPING_NONE = "  · 在参照范围内，任何单个输入怎么变都不会翻转结论"
 BELOW = "低于"
