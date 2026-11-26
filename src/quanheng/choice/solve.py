@@ -6,6 +6,7 @@ from numpy.typing import NDArray
 
 import quanheng
 from quanheng.choice.evaluate import TIE_TOLERANCE, central_weights, draw, evaluate
+from quanheng.choice.info_value import info_values
 from quanheng.choice.model import ChoiceModel
 from quanheng.choice.result import (
     ChoiceResult,
@@ -178,6 +179,7 @@ def solve_choice(
         margin=margin,
         constraint_gaps=_constraint_gaps(model, central_raw),
         tipping_points=tipping_points(model, draws, winner) if winner is not None else [],
+        info_values=info_values(model, draws, outcome, winner) if winner is not None else [],
         warnings=warnings,
         assumptions=list(ASSUMPTIONS),
     )
