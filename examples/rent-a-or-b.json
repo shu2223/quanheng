@@ -1,0 +1,29 @@
+{
+  "kind": "choice",
+  "schema_version": 1,
+  "title": "租 A 还是租 B？",
+  "description": "两套房子二选一的示例。",
+  "options": [{"id": "a", "name": "A"}, {"id": "b", "name": "B"}],
+  "criteria": [
+    {"id": "rent", "name": "房租", "unit": "日元/月", "bad": 90000, "good": 60000},
+    {"id": "commute", "name": "通勤", "unit": "分钟", "bad": 60, "good": 20},
+    {"id": "light", "name": "采光", "unit": "分", "bad": 0, "good": 10},
+    {"id": "size", "name": "面积", "unit": "平方米", "bad": 20, "good": 35}
+  ],
+  "constraints": [{"criterion": "rent", "op": "<=", "threshold": 85000}],
+  "scores": {
+    "a": {"rent": 78000, "commute": [25, 35], "light": [6, 8], "size": 25},
+    "b": {
+      "rent": 70000,
+      "commute": {
+        "value": {"kind": "range", "low": 40, "high": 55},
+        "unit": "分钟",
+        "source": {"type": "llm_inferred", "reason": "按地图估算，未实测"},
+        "confirmed": true
+      },
+      "light": [4, 5, 7],
+      "size": 28
+    }
+  },
+  "weights": {"values": {"rent": 30, "commute": 35, "light": 15, "size": 20}, "certainty": "medium"}
+}
