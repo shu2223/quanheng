@@ -2,7 +2,8 @@ import numpy as np
 import pytest
 
 from quanheng.choice.evaluate import draw
-from quanheng.errors import PatchError
+from quanheng.choice.model import ChoiceModel
+from quanheng.errors import PatchError, UnconfirmedInputError
 from quanheng.whatif import PatchOp, apply_patch, compare
 
 
@@ -96,10 +97,17 @@ def test_weight_patch_needs_other_criteria(hand_model):
     one["criteria"] = one["criteria"][:1]
     one["scores"] = {k: {"rent": v["rent"]} for k, v in one["scores"].items()}
     one["weights"]["values"] = {"rent": 1}
-    from quanheng.choice.model import ChoiceModel
-
     with pytest.raises(PatchError):
         apply_patch(ChoiceModel.model_validate(one), [op("weights.rent", "set", 0.5)])
+
+
+def test_compare_refuses_an_unconfirmed_input_even_when_the_patch_sets_it(rent_model):
+    data = rent_model.model_dump()
+    data["scores"]["b"]["commute"]["confirmed"] = False
+    unconfirmed = ChoiceModel.model_validate(data)
+    with pytest.raises(UnconfirmedInputError) as exc:
+        compare(unconfirmed, [op("scores.b.commute", "set", 45)])
+    assert exc.value.targets == ["scores.b.commute"]
 
 
 def test_anchors_are_not_a_target(rent_model):

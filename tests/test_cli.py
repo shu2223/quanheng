@@ -126,3 +126,15 @@ def test_unconfirmed_inputs_exit_3(tmp_path):
     f.write_text(text, encoding="utf-8")
     p = run("solve", str(f))
     assert p.returncode == 3 and "scores.b.commute" in p.stderr
+
+
+def test_whatif_setting_an_unconfirmed_input_still_exits_3(tmp_path):
+    text = (
+        (ROOT / EXAMPLE)
+        .read_text(encoding="utf-8")
+        .replace('"confirmed": true', '"confirmed": false')
+    )
+    f = tmp_path / "u.json"
+    f.write_text(text, encoding="utf-8")
+    p = run("whatif", str(f), "--set", "scores.b.commute=45")
+    assert p.returncode == 3 and "scores.b.commute" in p.stderr and p.stdout == ""
