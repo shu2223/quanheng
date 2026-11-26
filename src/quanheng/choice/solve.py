@@ -16,6 +16,7 @@ from quanheng.choice.result import (
     Thresholds,
     Verdict,
 )
+from quanheng.choice.tipping import leading_index, tipping_points
 from quanheng.weights import POOR_CONSISTENCY
 
 ASSUMPTIONS = [
@@ -103,8 +104,8 @@ def solve_choice(
     none_share = float(outcome.none_feasible.mean())
     feasibility = {oid: float(outcome.feasible[:, i].mean()) for i, oid in enumerate(ids)}
 
-    order = np.argsort(-rates, kind="stable")
-    leader_i, second_i = int(order[0]), int(order[1])
+    leader_i = leading_index(rates)
+    second_i = int(np.argsort(-rates, kind="stable")[1])
     top = float(rates[leader_i])
 
     level: Level
@@ -176,6 +177,7 @@ def solve_choice(
         central_leader=central_leader,
         margin=margin,
         constraint_gaps=_constraint_gaps(model, central_raw),
+        tipping_points=tipping_points(model, draws, winner) if winner is not None else [],
         warnings=warnings,
         assumptions=list(ASSUMPTIONS),
     )
