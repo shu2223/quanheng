@@ -69,15 +69,54 @@ def test_quoted_requires_quote_and_extra_fields_rejected():
         q(value={"kind": "exact", "value": 1}, typo=1)
 
 
-def test_json_round_trip():
-    x = q(
-        value={"kind": "range", "low": 40, "high": 55},
-        unit="分钟",
-        source={"type": "llm_inferred", "reason": "按地图估算"},
-        confirmed=True,
-    )
+VALUES = [
+    {"kind": "exact", "value": 3},
+    {"kind": "range", "low": 40, "high": 55},
+    {"kind": "three_point", "low": 1, "mode": 2, "high": 4},
+]
+SOURCES = [
+    {"type": "user_input"},
+    {"type": "quoted", "quote": "房租7万"},
+    {"type": "imported", "file": "a.csv", "location": "B2"},
+    {"type": "llm_inferred", "reason": "按地图估算"},
+]
+
+
+@pytest.mark.parametrize("value", VALUES)
+@pytest.mark.parametrize("source", SOURCES)
+def test_round_trip(value, source):
+    x = q(value=value, unit="分钟", source=source, confirmed=True)
     assert Quantity.model_validate_json(x.model_dump_json()) == x
     assert Quantity.model_validate(x.model_dump()) == x
+
+
+def test_full_form_dict_still_validates():
+    x = q(value={"kind": "range", "low": 40, "high": 55}, source={"type": "user_input"})
+    assert x.bounds == (40, 55)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        {"kind": "exact", "value": "70000"},
+        {"kind": "exact", "value": True},
+        {"kind": "range", "low": "1", "high": 2},
+        {"kind": "three_point", "low": 1, "mode": True, "high": 3},
+    ],
+)
+def test_no_numeric_coercion_in_full_form(value):
+    with pytest.raises(ValidationError):
+        q(value=value)
+
+
+@pytest.mark.parametrize("confirmed", ["yes", 1, "true", None])
+def test_confirmed_must_be_real_bool(confirmed):
+    with pytest.raises(ValidationError):
+        q(
+            value={"kind": "exact", "value": 1},
+            source={"type": "quoted", "quote": "x"},
+            confirmed=confirmed,
+        )
 
 
 def test_errors():
