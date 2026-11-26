@@ -62,3 +62,59 @@ def test_whatif_text(hand_model):
     assert lines[1] == "之前：明确 A　A 在 100% 的情况下胜出（±0.0%）"
     assert lines[2] == "之后：明确 B　B 在 100% 的情况下胜出（±0.0%）"
     assert lines[-1] == "结论翻转了。"
+
+
+def _model(hand_dict, edit):
+    edit(hand_dict)
+    return ChoiceModel.model_validate(hand_dict)
+
+
+def _single(a, b):
+    return ChoiceModel.model_validate(
+        {
+            "title": "t",
+            "options": [{"id": "a", "name": "A"}, {"id": "b", "name": "B"}],
+            "criteria": [{"id": "x", "name": "项", "bad": 0, "good": 10}],
+            "scores": {"a": {"x": a}, "b": {"x": b}},
+            "weights": {"values": {"x": 1}, "certainty": "fixed"},
+        }
+    )
+
+
+def test_toss_up_text():
+    m = _single(5, [0, 10])
+    lines = explain_choice(m, solve_choice(m)).splitlines()
+    assert lines[1].startswith("难分高下　")
+    assert "略占上风" in lines[1]
+
+
+def test_central_disagrees_text():
+    m = _single([0, 0, 10], 2)
+    r = solve_choice(m)
+    assert r.verdict.winner == "a" and r.central_leader == "b"
+    lines = explain_choice(m, r).splitlines()
+    assert "为什么是 A（按中心值计算，A 相对 B 的各项贡献）" in lines
+    assert "注意：按中心值计算是 B 领先，与抽样结果不一致，以抽样结果为准。" in lines
+
+
+def test_outside_anchors_text(hand_dict):
+    m = _model(hand_dict, lambda d: d["scores"]["a"].update(rent=95000))
+    lines = explain_choice(m, solve_choice(m)).splitlines()
+    assert '注意：A 的"房租"超出了你设的参照范围。' in lines
+
+
+def test_poor_consistency_text(hand_dict):
+    m = _model(hand_dict, lambda d: d["weights"].update(consistency_ratio=0.2))
+    lines = explain_choice(m, solve_choice(m)).splitlines()
+    assert "注意：两两比较的结果前后不够一致，权重的波动已放大。" in lines
+
+
+def test_partial_infeasibility_text(hand_dict):
+    def edit(d):
+        d["scores"]["a"]["rent"] = [70000, 90000]
+        d["constraints"] = [{"criterion": "rent", "op": "<=", "threshold": 85000}]
+
+    m = _model(hand_dict, edit)
+    text = explain_choice(m, solve_choice(m))
+    assert "A 有 25% 的情况不满足硬约束。" in text.splitlines()
+    assert "没有任何候选可行" not in text

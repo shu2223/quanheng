@@ -80,24 +80,24 @@ def _conclusion_block(model: ChoiceModel, result: ChoiceResult) -> list[str]:
 
 def _why_block(model: ChoiceModel, result: ChoiceResult) -> list[str]:
     lines: list[str] = []
-    leader_id = result.central_leader
-    if leader_id is None:
+    winner_id = result.verdict.winner
+    second_id = result.verdict.runner_up
+    if winner_id is None or second_id is None:
         return lines
-    others = [o.id for o in model.options if o.id != leader_id]
-    second_id = max(others, key=lambda o: result.central_scores[o])  # first max wins ties
     diffs = [
-        (c.name, result.contributions[leader_id][c.id] - result.contributions[second_id][c.id])
+        (c.name, result.contributions[winner_id][c.id] - result.contributions[second_id][c.id])
         for c in model.criteria
     ]
     diffs.sort(key=lambda t: -abs(t[1]))  # stable on criterion order
     lines.append(
         zh.CONTRIB_TITLE.format(
-            leader=_option_name(model, leader_id), second=_option_name(model, second_id)
+            leader=_option_name(model, winner_id), second=_option_name(model, second_id)
         )
     )
     lines.extend(zh.CONTRIB_LINE.format(criterion=n, diff=f"{d:+.2f}") for n, d in diffs)
-    if any(w.code == "central_disagrees" for w in result.warnings):
-        lines.append(zh.CENTRAL_DISAGREES.format(option=_option_name(model, leader_id)))
+    central_id = result.central_leader
+    if central_id is not None and any(w.code == "central_disagrees" for w in result.warnings):
+        lines.append(zh.CENTRAL_DISAGREES.format(option=_option_name(model, central_id)))
     return lines
 
 
